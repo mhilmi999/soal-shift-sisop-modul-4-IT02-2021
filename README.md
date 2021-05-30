@@ -1,7 +1,7 @@
 ## soal-shift-sisop-modul-4-IT02-2021
 ---
 
-Penjelasan dan penyelesaian Soal Shift 3 Sistem Operasi 2021\
+Penjelasan dan penyelesaian Soal Shift 4 Sistem Operasi 2021\
 Kelompok IT02
 
 1. Muhammad Hilmi Ramadhan (05311940000044)
