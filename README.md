@@ -106,7 +106,7 @@ Pada soal 1.a sebagai permulaan dari soal ini kami diminta untuk membuat direkto
 
 **Cara Pengerjaan**
 ---
-Untuk membuat FUSE system sesuai dengan linux pada umumnya kita menggunakan referensi template dari modul-4 begitu juga dari contoh passthrough pada dokumentasi FUSE. Untuk menginisiasi awal FUSE kami perlu mendaklarasikan fuse_operations seperti code dibawah ini.
+Untuk membuat FUSE system sesuai dengan linux pada umumnya kita menggunakan referensi template dari modul-4 begitu juga dari contoh passthrough pada dokumentasi FUSE. Untuk menginisiasi awal FUSE kami perlu mendaklarasikan fuse_operations seperti code dibawah ini. Dengan pendefinisian setiap fungsi yang terdapat dalam struct fuse_operations maka FUSE system sudah bisa digunakan seperti didalam linux pada umumnya
 
 ```cpp
 static const struct fuse_operations xmp_oper = {
@@ -124,43 +124,20 @@ static const struct fuse_operations xmp_oper = {
 ```
 _Pada struct diatas akan menjadi fungsi yang bisa berjalan dalam FUSE-nya, misalnya bisa melakukan rename, mkdir ls dan lain lain_
 
+- `.getattr` untuk mendapatkan **`stat`** dari `path` yang diinputkan.
+- `.access` untuk mengakses `path` yang diinputkan.
+- `.readdir` untuk membaca direktori dalam `path`.
+- `.mkdir` untuk membuat direktori pada `path`.
+- `.unlink` untuk menghapus sebuah file pada `path`.
+- `.rmdir` untuk menghapus directory pada `path`.
+- `.rename` untuk me-*rename* dari `path` awal menjadi `path` tujuan.
+- `.create` untuk membuat dan membuka file yang terdapat dalam `path`.
+- `.read` untuk membaca isi dari `path`.
+- `.mknod` untuk membuat file dalam `path`.
+- `.write` untuk menulis kedalam `path`.
 
 
-Untuk menjaalankan fungsi yang bisa berjalan terutama fungsi listingnya kita perlu mendefinisikan fuse operations getattr untuk mendapatkan attribut dalam sebuah direktori, attribut sendiri adalah detail detail dari apapun dalam direktori. Jika fungsi getattr tidak didefinisikan maka fungsi fuse tidak akan bisa berjalan.
-```cpp
-static int xmp_getattr(const char *path, struct stat *stbuf)
-{
-    char fpath[1000];
-    char temp[1024];
-    strcpy(temp, path);
-    printf("getattr\n");
-    printf("path %s\n", path);
-    sprintf(fpath, "%s%s", dirpath, path);
-    if (access(fpath, F_OK) == -1)
-    {
-        bzero(fpath, sizeof(fpath));
-        printf("gabisa akses\n");
-        dirasli(temp, fpath);
-    }
-    int res;
-
-    printf("acces fpath %s\n", fpath);
-    res = lstat(fpath, stbuf);
-
-    char desc[1024];
-    strcpy(desc, path);
-    logsytem("INFO", "GETATTR", desc);
-
-    if (res != 0)
-    {
-        printf("error\n");
-        return -ENOENT;
-    }
-
-    return 0;
-}
-```
-_Dalam fungsi diatas kita akan melakukan pengecekan terlebih dahulu apakah path tersebut bisa dibuka atau tidak, jika tidak bisa dibuka kemungkinkan adalah file dengan nama terenkripsi supaya bisa sesuai dengan file asli pada dirpath_
+Namun yang menjadi tantangan adalah pada direktori di FUSE yang terenkripsi. Akan muncul perbedaan nama antara FUSE dan dirpath yang asli, sehingga file tidak terdeteksi ada dan akan memunculkan error `Directory or file not found` , untuk mengatasi permasalahan ini kita membuat fungsi `dirasli()` dan `dirbaru()` untuk mengubah direktori pada fuse supaya sama dengan direktori mount nya dalam pemrosesan fuse_operations. berikut adalah fungsi `dirasli()` : 
 
 ```cpp
 void dirasli(char *inppath, char *outpath)
@@ -330,6 +307,44 @@ void dirasli(char *inppath, char *outpath)
 ```
 _Fungsi diatas mengubah sebuah nama direktori yang terencode dalam mount filesystemnya, menjadi nama file asli pada dirpath supaya file tersebut bisa dibuka, Fungsi ini akan mengecek apakah awal direktori terdiri dari kata AtoZ atau RX jika iya akan dilakukan decrypting sesuai dengan metode yang digunakan atau arahan dari soal misalnya jika awal dari direktorinya AtoZ maka didekrip dengan atbash, jika RX maka akan dicek terlebih dahulu apakah perubahannya berasal dari rename atau bukan jika iya maka akan menggunakan vigenere cipher dan atbahs, jika tidak maka akan didecrypt dengan rot13 dan atbash. Fungsi ini akan mengembalikan fullpath asli terdekripsi dari dirpathnya._
 
+Untuk menjaalankan fungsi yang bisa berjalan terutama fungsi listingnya kita perlu mendefinisikan fuse operations getattr untuk mendapatkan attribut dalam sebuah direktori, attribut sendiri adalah detail detail dari apapun dalam direktori. Jika fungsi getattr tidak didefinisikan maka fungsi fuse tidak akan bisa berjalan.
+```cpp
+static int xmp_getattr(const char *path, struct stat *stbuf)
+{
+    char fpath[1000];
+    char temp[1024];
+    strcpy(temp, path);
+    printf("getattr\n");
+    printf("path %s\n", path);
+    sprintf(fpath, "%s%s", dirpath, path);
+    if (access(fpath, F_OK) == -1)
+    {
+        bzero(fpath, sizeof(fpath));
+        printf("gabisa akses\n");
+        dirasli(temp, fpath);
+    }
+    int res;
+
+    printf("acces fpath %s\n", fpath);
+    res = lstat(fpath, stbuf);
+
+    char desc[1024];
+    strcpy(desc, path);
+    logsytem("INFO", "GETATTR", desc);
+
+    if (res != 0)
+    {
+        printf("error\n");
+        return -ENOENT;
+    }
+
+    return 0;
+}
+```
+_Dalam fungsi diatas kita akan melakukan pengecekan terlebih dahulu apakah path tersebut bisa dibuka atau tidak, jika tidak bisa dibuka kemungkinkan adalah file dengan nama terenkripsi supaya bisa sesuai dengan file asli pada dirpath_
+
+
+
 Dalam command `ls` kita akan dimunculkan nama nama file yang harusnya sudah sesuai dengan permintaan soal. maka dari itu kita akan berangkat dari fungsi readdir dan getattr. Dimana dalam fungsi readdir ini nantinya akan menampilkan nama file yang sudah terenkripsi kepada user. Pertama akan dicek terlebih dahulu apakah awalan dari directorynya merupaka directory khusus atau bukan. jika iya maka akan di proses dalam listing filenya, jika bukan akan ditampilkan seperti biasa. 
 ```cpp
 static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
@@ -344,223 +359,10 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     char fpath[1000];
     char name[1000];
     char cekrename[128];
-    printf("namadifusedir: %s\n", path);
-    sprintf(fpath, "%s%s", dirpath, path);
-    printf("fpathread ent %s\n", fpath);
-    // strcpy(fpath, path);
-    if (strcmp(path, "/") == 0)
-    {
-        printf("cuma /\n");
-        bzero(fpath, sizeof(fpath));
-        sprintf(fpath, "%s", dirpath);
-    }
-    else
-    {
-        printf("nggak cuma /\n");
+    
+    ....
+    ....
 
-        if (strstr(fpath, "/AtoZ_") != NULL)
-        {
-            {
-                bzero(fpath, sizeof(fpath));
-                char pathsetengah[1024];
-                strcpy(fpath, path);
-
-                //dapetin yang ga di hash
-                int reallen = strlen(fpath);
-
-                //dapeting yang di hash
-                bzero(fpath, sizeof(fpath));
-                strcpy(fpath, path);
-                char *str = strstr(fpath, "/AtoZ_");
-                printf("str %s\n", str);
-                int m = 0;
-                char arr2[100][1024];
-                char *enkrip = strtok(str, "/");
-                printf("enkrip %s\n", enkrip);
-
-                if ((enkrip = strtok(NULL, "/")) != NULL)
-                {
-                    printf("enkrip2 %s\n", enkrip);
-                    char str2[1024];
-                    bzero(fpath, sizeof(fpath));
-                    strcpy(fpath, path);
-                    printf("cek fpath %s\n", fpath);
-                    bzero(str2, sizeof(str2));
-                    strcpy(str2, strstr(fpath, enkrip));
-                    printf("new enkrip %s\n", str2);
-                    atbash(str2);
-
-                    //cari pathsetengah
-                    int enkriplen = strlen(str2);
-                    printf("real %d enkrip %d hasil %d\n", reallen, enkriplen, reallen - enkriplen);
-                    bzero(pathsetengah, sizeof(pathsetengah));
-                    strncpy(pathsetengah, fpath, reallen - enkriplen);
-                    printf("pathse %s\n", pathsetengah);
-                    bzero(fpath, sizeof(fpath));
-
-                    sprintf(fpath, "%s%s%s", dirpath, pathsetengah, str2);
-                    // printf("fpathreal %s\n", fpath);
-                }
-                else
-                {
-                    sprintf(fpath, "%s%s", dirpath, path);
-                }
-            }
-        }
-        else if (strstr(fpath, "/RX_") != NULL)
-        {
-            bzero(fpath, sizeof(fpath));
-            char bufpathsetengah[1024];
-            strcpy(fpath, path);
-
-            //dapetin yang ga di hash
-            int bufreallen = strlen(fpath);
-
-            //dapeting yang di hash
-            bzero(fpath, sizeof(fpath));
-            strcpy(fpath, path);
-            char *bufstr = strstr(fpath, "/RX_");
-            printf("str %s\n", bufstr);
-
-            char *bufenkrip = strtok(bufstr, "/");
-            printf("bufenkrip %s\n", bufenkrip);
-
-            if ((bufenkrip = strtok(NULL, "/")) != NULL)
-            {
-                printf("bufenkrip2 %s\n", bufenkrip);
-                char bufstr2[1024];
-                bzero(fpath, sizeof(fpath));
-                strcpy(fpath, path);
-                printf("cek fpath %s\n", fpath);
-                bzero(bufstr2, sizeof(bufstr2));
-                strcpy(bufstr2, strstr(fpath, bufenkrip));
-                printf("new bufenkrip %s\n", bufstr2);
-                atbash(bufstr2);
-                char anotherbuf[100];
-                bzero(anotherbuf, sizeof(anotherbuf));
-                vigeneredecode(bufstr2, anotherbuf);
-                atbash(anotherbuf);
-                //cari bufpathsetengah
-                int enkriplen = strlen(bufstr2);
-                printf("real %d enkrip %d hasil %d\n", bufreallen, enkriplen, bufreallen - enkriplen);
-                bzero(bufpathsetengah, sizeof(bufpathsetengah));
-                strncpy(bufpathsetengah, fpath, bufreallen - enkriplen - 1);
-                printf("pathse %s\n", bufpathsetengah);
-                bzero(fpath, sizeof(fpath));
-
-                sprintf(fpath, "%s%s", dirpath, bufpathsetengah);
-
-                sprintf(cekrename, "%s%s", dirpath, bufpathsetengah);
-                // printf("fpathreal %s\n", fpath);
-            }
-            printf("fpath rx %s\n", fpath);
-
-            if (in(jumlahket, fpath))
-            {
-                printf("detect move\n");
-                bzero(fpath, sizeof(fpath));
-                char pathsetengah[1024];
-                strcpy(fpath, path);
-
-                //dapetin yang ga di hash
-                int reallen = strlen(fpath);
-
-                //dapeting yang di hash
-                bzero(fpath, sizeof(fpath));
-                strcpy(fpath, path);
-                char *str = strstr(fpath, "/RX_");
-                printf("str %s\n", str);
-                int m = 0;
-                char arr2[100][1024];
-                char *enkrip = strtok(str, "/");
-                printf("enkrip %s\n", enkrip);
-
-                if ((enkrip = strtok(NULL, "/")) != NULL)
-                {
-                    printf("enkrip2 %s\n", enkrip);
-                    char str2[1024];
-                    bzero(fpath, sizeof(fpath));
-                    strcpy(fpath, path);
-                    printf("cek fpath %s\n", fpath);
-                    bzero(str2, sizeof(str2));
-                    strcpy(str2, strstr(fpath, enkrip));
-                    printf("new enkrip %s\n", str2);
-                    // atbash(str2);
-                    char buf[100];
-                    bzero(buf, sizeof(buf));
-                    vigeneredecode(str2, buf);
-                    atbash(buf);
-                    //cari pathsetengah
-                    int enkriplen = strlen(str2);
-                    printf("real %d enkrip %d hasil %d\n", reallen, enkriplen, reallen - enkriplen);
-                    bzero(pathsetengah, sizeof(pathsetengah));
-                    strncpy(pathsetengah, fpath, reallen - enkriplen);
-                    printf("pathse %s\n", pathsetengah);
-                    bzero(fpath, sizeof(fpath));
-
-                    sprintf(fpath, "%s%s%s", dirpath, pathsetengah, buf);
-                    // printf("fpathreal %s\n", fpath);
-                }
-                else
-                {
-                    sprintf(fpath, "%s%s", dirpath, path);
-                }
-            }
-            else
-            {
-                bzero(fpath, sizeof(fpath));
-                char pathsetengah[1024];
-                strcpy(fpath, path);
-
-                //dapetin yang ga di hash
-                int reallen = strlen(fpath);
-
-                //dapeting yang di hash
-                bzero(fpath, sizeof(fpath));
-                strcpy(fpath, path);
-                char *str = strstr(fpath, "/RX_");
-                printf("str %s\n", str);
-                int m = 0;
-                char arr2[100][1024];
-                char *enkrip = strtok(str, "/");
-                printf("enkrip %s\n", enkrip);
-
-                if ((enkrip = strtok(NULL, "/")) != NULL)
-                {
-                    printf("enkrip2 %s\n", enkrip);
-                    char str2[1024];
-                    bzero(fpath, sizeof(fpath));
-                    strcpy(fpath, path);
-                    printf("cek fpath %s\n", fpath);
-                    bzero(str2, sizeof(str2));
-                    strcpy(str2, strstr(fpath, enkrip));
-                    printf("new enkrip %s\n", str2);
-                    atbash(str2);
-                    rot13(str2);
-
-                    //cari pathsetengah
-                    int enkriplen = strlen(str2);
-                    printf("real %d enkrip %d hasil %d\n", reallen, enkriplen, reallen - enkriplen);
-                    bzero(pathsetengah, sizeof(pathsetengah));
-                    strncpy(pathsetengah, fpath, reallen - enkriplen);
-                    printf("pathse %s\n", pathsetengah);
-                    bzero(fpath, sizeof(fpath));
-
-                    sprintf(fpath, "%s%s%s", dirpath, pathsetengah, str2);
-                    // printf("fpathreal %s\n", fpath);
-                }
-                else
-                {
-                    sprintf(fpath, "%s%s", dirpath, path);
-                }
-            }
-        }
-        else
-        {
-            sprintf(fpath, "%s%s", dirpath, path);
-        }
-    }
-    printf("fpath readdir %s\n", fpath);
     dp = opendir(fpath);
     if (dp == NULL)
         return -errno;
@@ -574,12 +376,8 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         st.st_ino = de->d_ino;
         st.st_mode = de->d_type << 12;
         char fullpathname[1000];
-
-        // sprintf(fullpathname, "%s/%s", fpath, de->d_name);
         char temp[1000];
         strcpy(temp, de->d_name);
-        // printf("full1 %s\n", fullpathname);
-        // atbash(temp);
         if (strstr(path, "/AtoZ_") != NULL && strcmp(".", temp) != 0 && strcmp("..", temp) != 0)
         {
             if (strstr(temp, ".") == NULL)
@@ -594,12 +392,10 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                 char ekstensi[100];
                 strcpy(ekstensi, strstr(temp, "."));
                 char arr[100][1024], namafile[1024];
-                // strcpy(namafile, temp);
                 char *potongtitik = strtok(temp, ".");
                 int n = 0;
                 while (potongtitik != NULL)
                 {
-                    // arr[n] = potongtitik;
                     strcpy(arr[n], potongtitik);
                     printf("tongtik %s\n", arr[n]);
                     n++;
@@ -638,12 +434,10 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                     char ekstensi[100];
                     strcpy(ekstensi, strstr(temp, "."));
                     char arr[100][1024], namafile[1024];
-                    // strcpy(namafile, temp);
                     char *potongtitik = strtok(temp, ".");
                     int n = 0;
                     while (potongtitik != NULL)
                     {
-                        // arr[n] = potongtitik;
                         strcpy(arr[n], potongtitik);
                         printf("tongtik %s\n", arr[n]);
                         n++;
@@ -706,7 +500,9 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     return 0;
 }
 ```
-_implementeasi command LS dalam fuse, dimana perlu dilakukan pengecekan secara berlapis apakah directory yang dibaca terdapat string `AtoZ` atau `RX` nya jika iya maka akan di proses, selanjutnya jika berawlan `RX` akan dicek apakah merupakan hasil produksi dari rename atau bukan, jika iya akan menggunakan vigenere cipher dan jika tidak akan menggunakan rot13 dan atbash saja._
+_implementeasi command LS dalam fuse, dimana perlu dilakukan pengecekan secara berlapis apakah directory yang dibaca terdapat string `AtoZ` atau `RX` nya jika iya maka akan di proses, selanjutnya jika berawlan `RX` akan dicek apakah merupakan hasil produksi dari rename atau bukan, jika iya akan menggunakan vigenere cipher dan atbash dan jika tidak akan menggunakan rot13 dan atbash saja._
+
+
 <br>
 
 ## Soal 1.b.
@@ -715,7 +511,89 @@ Pada soal 1.b sebagai lanjutan dari soal yang sebelumnya, yang mana pada dasarny
 
 **Cara Pengerjaan**
 ---
-Dalam pengerjaanya hanya terpengaruh dalam fungsi getattr dan readdir saja dimana sudah dijelaskan dalam poin sebelumnya.
+Dalam pengerjaanya hanya terpengaruh dalam fungsi getattr dan readdir saja dimana sudah dijelaskan dalam poin sebelumnya. Disini saya akan menggaris bawahi dimana direktori dengan awalan akan di enkripsi dengan atbash. Berikut adalah potongan dalam fungsi readdir.
+
+```cpp
+static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+                       off_t offset, struct fuse_file_info *fi)
+{
+    int res;
+    DIR *dp;
+    struct dirent *de;
+
+    (void)offset;
+    (void)fi;
+    char fpath[1000];
+    char name[1000];
+    char cekrename[128];
+    
+    ....
+    ....
+
+    dp = opendir(fpath);
+    if (dp == NULL)
+        return -errno;
+
+    while ((de = readdir(dp)) != NULL)
+    {
+        printf("INI DE : %s\n", de->d_name);
+
+        struct stat st;
+        memset(&st, 0, sizeof(st));
+        st.st_ino = de->d_ino;
+        st.st_mode = de->d_type << 12;
+        char fullpathname[1000];
+        char temp[1000];
+        strcpy(temp, de->d_name);
+        if (strstr(path, "/AtoZ_") != NULL && strcmp(".", temp) != 0 && strcmp("..", temp) != 0)
+        {
+            if (strstr(temp, ".") == NULL)
+            {
+                printf("chr %s\n", strstr(temp, "."));
+                atbash(temp);
+            }
+
+            else
+            {
+                printf("chr2 %s\n", strstr(temp, "."));
+                char ekstensi[100];
+                strcpy(ekstensi, strstr(temp, "."));
+                char arr[100][1024], namafile[1024];
+                char *potongtitik = strtok(temp, ".");
+                int n = 0;
+                while (potongtitik != NULL)
+                {
+                    strcpy(arr[n], potongtitik);
+                    printf("tongtik %s\n", arr[n]);
+                    n++;
+                    potongtitik = strtok(NULL, ".");
+                }
+                strcpy(namafile, arr[n - 2]);
+                atbash(namafile);
+                bzero(temp, sizeof(temp));
+                sprintf(temp, "%s.%s", namafile, arr[n - 1]);
+                printf("temp %s\n", temp);
+            }
+        }
+
+        ....
+        ....
+        
+        printf("type %d\n", de->d_type);
+        printf("INI DE AFTER ENC: %s\n", temp);
+        char desc[1024];
+        strcpy(desc, path);
+        logsytem("INFO", "READDIR", desc);
+        res = (filler(buf, temp, &st, 0));
+        if (res != 0)
+            break;
+    }
+    closedir(dp);
+    return 0;
+}
+```
+_Dalam fungsi readdir yang akan ditampilkan ke dalam user adalah yang dimasukan dalam fungsi filler, dimana nama filenya disimpan dalam variabel temp, dimana variabel temp ini sendiri sudah diubah dengan metode enkripsi atbash. Supaya tidak perlu mengenkripsi extensionnya maka yang dikirimkan ke proses enkripsi atbash hanyalah nama file tanpa ekstensinya._
+
 <br>
 
 ## Soal 1.c.
@@ -724,7 +602,11 @@ Pada soal 1.c kami diminta untuk melakukan proses *encode* jika suatu direktori 
 
 **Cara Pengerjaan**
 ---
+Untuk berhasil memenuhi poin soal ini kami melakukan pengecekan string dalam string dengan fungsi strstr dimana pada fungsi tersebut di-cek apakah dalam satu fullpath terdapat string `AtoZ_` atau tidak, jika maka akan di-enkripsi. Mengapa fungsi ini bisa bekerja secara recursie sampai didalam direktori terenkripsi, dikarenakan sebuah path jika mengandung string tersebut akan otomatis ter enkripsi dan berikut adalah pengecekan apakah terdapat string tersebut atau tidak.
 
+```cpp
+if (strstr(path, "/AtoZ_") != NULL && strcmp(".", temp) != 0 && strcmp("..", temp) != 0)
+```
 <br>
 
 ## Soal 1.d.
@@ -733,7 +615,7 @@ Pada soal 1.d yang mana diminta untuk melakukan pencatatan jika terjadi pembuata
 
 **Cara Pengerjaan**
 ---
-
+Dalam pengerjaan soal ini akan didetailkan pada poin soal nomer 4 dimana setiap perubahan nama direktori akan disimpan dalam log.
 <br>
 
 ## Soal 1.e.
@@ -742,6 +624,41 @@ Pada soal 1.e perlakuan *encode* dengan metode *Atbash cipher* juga berlaku pada
 
 **Cara Pengerjaan**
 ---
+Untuk memenuhi poin pada soal ini kami mendapatkan referensi atbash cipher yang sudah kami edit sedemikian rupa sehingga berjalan sesuai dengan permintaan soal.
+
+```cpp
+char upper_case[] = {'Z', 'Y', 'X', 'W', 'V', 'U',
+                     'T', 'S', 'R', 'Q', 'P', 'O',
+                     'N', 'M', 'L', 'K', 'J', 'I',
+                     'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'};
+
+char lower_case[] = {'z', 'y', 'x', 'w', 'v', 'u',
+                     't', 's', 'r', 'q', 'p', 'o',
+                     'n', 'm', 'l', 'k', 'j', 'i',
+                     'h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'};
+
+void atbash(char *message)
+{
+    int len = strlen(message); 
+    char cipher[1024];
+    int ascii_char;
+    char result[1024];
+    for (int i = 0; i < len; i++)
+    {
+        ascii_char = message[i]; 
+
+        if (ascii_char >= 'A' && ascii_char <= 'Z')
+            message[i] = upper_case[ascii_char - 65]; 
+        else if (ascii_char >= 'a' && ascii_char <= 'z')
+            message[i] = lower_case[ascii_char - 97]; 
+        else if (ascii_char == 46)
+            break;
+        else
+            continue;
+    }
+}
+```
+_pada program atbash akan menerima argumen path yang dikirimkan akan di enkripsi. Sesuai dari referensi https://www.dcode.fr/atbash-cipher Akan dilakukan pengecekan apakah huruf kapital atau kecil akan diproses dengan perhitungan yang berbeda. Kemudian jika ditemukan string `.` maka akan dihentikan proses enkripsi menandakan bahwa itu adalah enkripsi, dan jika selain huruf alphabet ataupun titik akan diteruskan saja_
 
 <br>
 
@@ -750,7 +667,7 @@ Pada soal 1.e perlakuan *encode* dengan metode *Atbash cipher* juga berlaku pada
 
 **Kendala**
 ---
-Pada awalnya dari kelompok kami kesulitan untuk mengatasi
+Pada awalnya dari kelompok kami kesulitan untuk mengatasi perbedaan nama file antara fuse dengan mount direktori
 
 <br>
 
@@ -787,6 +704,137 @@ Pada soal 2.a diminta untuk melakukan perubahan nama isi sesuai kasus pada [Soal
 **Cara Pengerjaan**
 ---
 
+Dalam pengerjaanya tidak begitu jauh berbeda dengan soal nomor 1. Dimana dalam soal ini kita akan mengecek apakah sebuah path terdapat string `RX_` jika iya maka akan dienkripsi file file yang ada didalamnya. Disini kami menggunakan atbash dan rot13 cipher sesuai perintah soal. Dimana atbash sudah dijelaskan pada soal 1. Selanjutnya sebuah file yang sudah terenkripsi dengan atbash akan di enkripsi dengan rot13. Begitu juga untuk melakukan dekripsi pada pencarian path aslinya. kami perlu menggabungkan dua atbash dan rot13 cipher tadi, namun karena keduanya masih symetric cipher jadi tidak perlu membuat fungsi decode baru.
+
+```cpp
+static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+                       off_t offset, struct fuse_file_info *fi)
+{
+    int res;
+    DIR *dp;
+    struct dirent *de;
+
+    (void)offset;
+    (void)fi;
+    char fpath[1000];
+    char name[1000];
+    char cekrename[128];
+    
+
+    ....
+    ....
+
+    dp = opendir(fpath);
+    if (dp == NULL)
+        return -errno;
+
+    while ((de = readdir(dp)) != NULL)
+    {
+        printf("INI DE : %s\n", de->d_name);
+
+        struct stat st;
+        memset(&st, 0, sizeof(st));
+        st.st_ino = de->d_ino;
+        st.st_mode = de->d_type << 12;
+        char fullpathname[1000];
+
+        ....
+        ....
+
+        else if (strstr(path, "/RX_") != NULL && strcmp(".", temp) != 0 && strcmp("..", temp) != 0)
+        {
+
+            if (in(jumlahket, cekrename))
+            {
+               ....
+            }
+            else
+            {
+                printf("else move\n");
+                if (strstr(temp, ".") == NULL)
+                {
+                    printf("chr %s\n", strstr(temp, "."));
+                    atbash(temp);
+                    rot13(temp);
+                }
+
+                else
+                {
+                    printf("chr2 %s\n", strstr(temp, "."));
+                    char ekstensi[100];
+                    strcpy(ekstensi, strstr(temp, "."));
+                    char arr[100][1024], namafile[1024];
+                    // strcpy(namafile, temp);
+                    char *potongtitik = strtok(temp, ".");
+                    int n = 0;
+                    while (potongtitik != NULL)
+                    {
+                        // arr[n] = potongtitik;
+                        strcpy(arr[n], potongtitik);
+                        printf("tongtik %s\n", arr[n]);
+                        n++;
+                        potongtitik = strtok(NULL, ".");
+                    }
+                    strcpy(namafile, arr[n - 2]);
+                    atbash(namafile);
+                    rot13(namafile);
+                    bzero(temp, sizeof(temp));
+                    sprintf(temp, "%s.%s", namafile, arr[n - 1]);
+                    printf("temp %s\n", temp);
+                }
+            }
+        }
+        printf("type %d\n", de->d_type);
+        printf("INI DE AFTER ENC: %s\n", temp);
+        char desc[1024];
+        strcpy(desc, path);
+        logsytem("INFO", "READDIR", desc);
+        res = (filler(buf, temp, &st, 0));
+        if (res != 0)
+            break;
+    }
+    closedir(dp);
+    return 0;
+}
+```
+
+Untuk memenuhi poin soal ini kita diminta menggunakan enkripsi ROT13, kami mendapatkan referensi juga untuk enkripsi ini. Dimana proses enkripsi ini akan mengecek dari message yang dikirimkan apakah kapital atau bukan, untuk algoritma dari ROT13 ini pun juga case sensitive. Dan jika iterasi pesanya menemukan string `.` maka akan berhenti dan tidak meneruskan enkripsi sebagai penanda ekstensi. Begitu juga jika mendapati message diluar alphabet akan diskip begitu saja.
+```cpp
+void rot13(char *message)
+{
+    int len = strlen(message); 
+    char cipher[1024];
+    int ascii_char;
+    char result[1024];
+    for (int i = 0; i < len; i++)
+    {
+        ascii_char = message[i];
+        if (ascii_char >= 'A' && ascii_char <= 'Z')
+        {
+            message[i] = ascii_char + 13;
+            if (ascii_char - 'A' + 13 >= 26)
+            {
+                int key = ((ascii_char - 'A') + 13) % 26;
+
+                message[i] = 'A' + key;
+            }
+        }
+        else if (ascii_char >= 'a' && ascii_char <= 'z')
+        {
+            message[i] = ascii_char + 13;
+            if (ascii_char - 'a' + 13 >= 26)
+            {
+                int key = ((ascii_char - 'a') + 13) % 26;
+                message[i] = 'a' + key;
+            }
+        }
+        else if (ascii_char == 46)
+            break;
+        else
+            continue;
+    }
+}
+```
 <br>
 
 ## Soal 2.b.
@@ -796,6 +844,314 @@ Pada soal 2.b serupa dengan [soal 2.a](#soal-2a), hanya yang menjadi titik berat
 **Cara Pengerjaan**
 ---
 
+Untuk mengetahui mana file yang direname atau bukan, dalam log system sendiri kami menyimpan semua path file yang diubah dengan metode rename atau mv pada sebuah global array variabel, dan juga menyimpan jumlah data berapa banyak file yang diubah dengan metode rename.
+```cpp
+void logsytem(char *level, char *cmd, char *desc)
+{
+    ....
+    ....
+
+    if (strcmp(cmd, "RENAME") == NULL)
+    {
+        printf("log rename\n");
+        strcpy(command[jumlah], "RENAME");
+        char buff[1024];
+        strcpy(buff, desc);
+        char tokendes[1024];
+        strcpy(tokendes, strtok(buff, "::"));
+        strcpy(keterangan[jumlahket], tokendes);
+        printf("ket 1 %s\n", keterangan[jumlahket]);
+        strcpy(tokendes, strtok(NULL, "::"));
+        jumlahket++;
+        strcpy(keterangan[jumlahket], tokendes);
+        printf("ket 2 %s\n", keterangan[jumlahket]);
+        jumlahket++;
+        jumlah++;
+    }
+
+    ...
+}
+```
+_Dalam fungsi logsystem jika command yang dikirimkan adalah "RENAME" maka keterangannya akan disimpan dalam variabel keterangan[]_
+
+Ketika Fuse menjalankan fungsi rename sendiri tentunya akan dipanggil fungsi logsystem dengan desc nya adalah path awal dan path akhirnya.
+
+```cpp
+static int xmp_rename(const char *from, const char *to, unsigned int flags)
+{
+
+    printf("from %s\n", from);
+    printf("to %s\n", to);
+
+    char ffrom[1000];
+    sprintf(ffrom, "%s%s", dirpath, from);
+    if (access(ffrom, F_OK) == -1)
+    {
+        memset(ffrom, 0, sizeof(ffrom));
+        dirasli(from, ffrom);
+    }
+
+    char fto[1000];
+    sprintf(fto, "%s%s", dirpath, to);
+    if (access(fto, F_OK) == -1)
+    {
+        memset(fto, 0, sizeof(fto));
+        dirbaru(to, fto);
+    }
+
+    int res;
+    printf("from %s and to %s\n", ffrom, fto);
+    res = rename(ffrom, fto);
+
+    const char desc[1024];
+    sprintf(desc, "%s::%s", ffrom, fto);
+    logsytem("INFO", "RENAME", desc);
+
+    if (res == -1)
+        return -errno;
+
+    return 0;
+}
+```
+_Dalam menjalankan fungsi mv atau rename system akan mengirimkan pada fungsi log berupa path awal dan path akhir dengan pembatas string berupa `::`_
+
+Setelah berhasil memasukan filename dari yang berubah berdasar rename, kita akan melakukan iterasi untuk membandingkan apakah file yang sedang diakses berasal dari rename atau bukan. Disini kami mendeklarasikan fungsi in() untuk mempermudah proses pengerjaan.
+```cpp
+int in(int len, char *target)
+{
+    int i;
+    for (i = 0; i < len; i++)
+    {
+        if (strncmp(keterangan[i], target, strlen(target)) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+```
+Dalam fungsi readdir untuk membantu listingnya, kita akan memanggil fungsi in() ini sendiri. Jika fungs in() mengembalikan nilai true maka direktori tersebut berubah melalui rename sehingga akan menggunakan atbash cipher dan vigenere cipher untuk menampilkanya.
+```cpp
+static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+                       off_t offset, struct fuse_file_info *fi)
+{
+    int res;
+    DIR *dp;
+    struct dirent *de;
+
+    (void)offset;
+    (void)fi;
+    char fpath[1000];
+    char name[1000];
+    char cekrename[128];
+
+    ....
+    ....
+
+    dp = opendir(fpath);
+    if (dp == NULL)
+        return -errno;
+
+    while ((de = readdir(dp)) != NULL)
+    {
+        printf("INI DE : %s\n", de->d_name);
+
+        struct stat st;
+        memset(&st, 0, sizeof(st));
+        st.st_ino = de->d_ino;
+        st.st_mode = de->d_type << 12;
+        char fullpathname[1000];
+
+       ....
+        else if (strstr(path, "/RX_") != NULL && strcmp(".", temp) != 0 && strcmp("..", temp) != 0)
+        {
+
+            if (in(jumlahket, cekrename))
+            {
+                printf("detect move tampil\n");
+                if (strstr(temp, ".") == NULL)
+                {
+                    printf("chr %s\n", strstr(temp, "."));
+                    char res[100];
+                    bzero(res, sizeof(res));
+                    strcpy(res, temp);
+                    atbash(res);
+                    char buf[100];
+                    bzero(buf, sizeof(buf));
+                    vigenereencode(res, buf);
+                    bzero(temp, sizeof(temp));
+                    strcpy(temp, buf);
+                }
+
+                else
+                {
+                    printf("chr2 %s\n", strstr(temp, "."));
+                    char ekstensi[100];
+                    strcpy(ekstensi, strstr(temp, "."));
+                    char arr[100][1024], namafile[1024];
+                    // strcpy(namafile, temp);
+                    char *potongtitik = strtok(temp, ".");
+                    int n = 0;
+                    while (potongtitik != NULL)
+                    {
+                        // arr[n] = potongtitik;
+                        strcpy(arr[n], potongtitik);
+                        printf("tongtik %s\n", arr[n]);
+                        n++;
+                        potongtitik = strtok(NULL, ".");
+                    }
+                    strcpy(namafile, arr[n - 2]);
+                    atbash(namafile);
+                    char buf[100];
+                    bzero(buf, sizeof(buf));
+                    vigenereencode(namafile, buf);
+                    bzero(temp, sizeof(temp));
+                    sprintf(temp, "%s.%s", buf, arr[n - 1]);
+                    printf("temp %s\n", temp);
+                }
+            }
+            ...
+        }
+        printf("type %d\n", de->d_type);
+        printf("INI DE AFTER ENC: %s\n", temp);
+        char desc[1024];
+        strcpy(desc, path);
+        logsytem("INFO", "READDIR", desc);
+        res = (filler(buf, temp, &st, 0));
+        if (res != 0)
+            break;
+    }
+    closedir(dp);
+    return 0;
+}
+```
+
+Untuk menyelesaikan poin soal ini digunakan vigenere cipher. Dimana vigenere cipher ini akan melakukan enkripsi menggunakan key `SISOP` dengan aturan case sensitive. Kami mendapatkan refernsi dari website ini `https://www.dcode.fr/vigenere-cipher`,  untuk detailnya vigenere cipher ini akan terbagi menjadi dua encode dan decode. Fungsi encodeuntuk menampilkan kepada user, sedangkan fungsi decode untuk mendapatkan path asli sehingga bisa dilakukan perubahan dan lain lainya. 
+
+```cpp
+void vigenereencode(char *msg, char *res)
+{
+    char key[5] = "SISOP";
+    int msgLen = strlen(msg), keyLen = strlen(key), i, j, k = 0;
+    char buf[100];
+    bzero(buf, sizeof(buf));
+
+    strcpy(buf, msg); 
+    char newKey[msgLen], encryptedMsg[msgLen];
+    bzero(newKey, sizeof(newKey));
+    for (i = 0, j = 0; i < msgLen; ++i, ++j)
+    {
+        if (j == keyLen)
+            j = 0;
+
+        newKey[i] = key[j];
+    }
+
+    newKey[i] = '\0';
+    bzero(encryptedMsg, sizeof(encryptedMsg));
+    for (i = 0; i < msgLen; i++)
+    {
+        char ascii_char = buf[i];
+        if ((ascii_char >= 'a' && ascii_char <= 'z') || (ascii_char >= 'A' && ascii_char <= 'Z'))
+        {
+            if (ascii_char >= 'A' && ascii_char <= 'Z')
+            {
+
+                encryptedMsg[i] = ((ascii_char - 'A' + newKey[i] - 65) % 26) + 65;
+            }
+            else if (ascii_char >= 'a' && ascii_char <= 'z')
+            {
+                encryptedMsg[i] = ((ascii_char - 162 + newKey[i]) % 26) + 97;
+            }
+        }
+        else if (ascii_char == 46)
+        {
+            for (k = i; k < msgLen; k++)
+            {
+                ascii_char = buf[k];
+                encryptedMsg[k] = ascii_char;
+            }
+            encryptedMsg[k] = "\0";
+            break;
+        }
+        else
+        {
+            encryptedMsg[i] = ascii_char;
+        }
+    }
+
+    if (k < i)
+    {
+        encryptedMsg[i] = 0;
+    }
+    printf("strlen %d\n", strlen(encryptedMsg));
+    bzero(res, sizeof(res));
+    strcpy(res, encryptedMsg);
+}
+```
+_Fungsi vigenere encode_
+
+```cpp
+void vigeneredecode(char *msg, char *res)
+{
+    char key[5] = "SISOP";
+    int msgLen = strlen(msg), keyLen = strlen(key), i, j, k = 0;
+    char buf[100];
+    bzero(buf, sizeof(buf));
+    bzero(res, sizeof(res));
+    strcpy(buf, msg); 
+    char newKey[msgLen], decryptedMsg[msgLen];
+    bzero(newKey, sizeof(newKey));
+    for (i = 0, j = 0; i < msgLen; ++i, ++j)
+    {
+        if (j == keyLen)
+            j = 0;
+
+        newKey[i] = key[j];
+    }
+
+    newKey[i] = '\0';
+    bzero(decryptedMsg, sizeof(decryptedMsg));
+
+    for (i = 0; i < msgLen; ++i)
+    {
+        char ascii_char = buf[i];
+        if ((ascii_char >= 'a' && ascii_char <= 'z') || (ascii_char >= 'A' && ascii_char <= 'Z'))
+        {
+            if (ascii_char >= 'A' && ascii_char <= 'Z')
+            {
+                decryptedMsg[i] = ((ascii_char - newKey[i] + 26) % 26) + 65;
+            }
+            else if (ascii_char >= 'a' && ascii_char <= 'z')
+            {
+                decryptedMsg[i] = ((ascii_char - newKey[i] - 6) % 26) + 97;
+            }
+        }
+        else if (ascii_char == 46)
+        {
+            for (k = i; k < msgLen; k++)
+            {
+                ascii_char = buf[k];
+                decryptedMsg[k] = ascii_char;
+            }
+            decryptedMsg[k] = 0;
+            break;
+        }
+        else
+        {
+            decryptedMsg[i] = ascii_char;
+        }
+    }
+
+    if (k < i)
+    {
+        decryptedMsg[i] = 0;
+    }
+
+    strcpy(res, decryptedMsg);
+}
+```
+_Fungsi vigenere decode_
 <br>
 
 ## Soal 2.c.
@@ -804,7 +1160,11 @@ Pada soal 2.c diharapkan dalam perubahan nama direktori `(Dihilangkan "RX_" nya)
 
 **Cara Pengerjaan**
 ---
+Dalam pengerjaanya poin soal ini hanya perlu menampilkanya kepada end user. Dimana dalam if statement dibawah ini menunjukan pengecekan path. Jika ternyata dalam path terdapat string `/RX_` maka akan di-enkripsi namun jika tidak maka akan dibiarkan seperti semula. 
 
+```cpp
+if (strstr(path, "/RX_") != NULL && strcmp(".", temp) != 0 && strcmp("..", temp) != 0)
+```
 <br>
 
 ## Soal 2.d.
@@ -813,7 +1173,7 @@ Pada soal 2.d diminta untuk setiap aktivitas menyangkut direktori ter-*encode* b
 
 **Cara Pengerjaan**
 ---
-
+Dalam pengerjaan soal ini akan didetailkan pada poin soal nomer 4 dimana setiap perubahan nama direktori akan disimpan dalam log.
 <br>
 
 ## Soal 2.e.
@@ -830,7 +1190,7 @@ Ketika diakses melalui `filesystem` hanya akan muncul `Suatu_File.txt`
 
 **Cara Pengerjaan**
 ---
-
+Tidak bisa mengerjakan
 <br>
 
 <br>
@@ -915,7 +1275,7 @@ Pada direktori asli nama filenya adalah `"File_CoNtoH.txt"`. Maka pada `fuse` ak
 
 **Kendala**
 ---
-Pada awalnya dari kelompok kami kesulitan untuk mengatasi
+Kami tidak memahami apa maksud dari soal dan juga keterbatasan waktu dalam mengerjakan program ini.
 <br>
 
 **Screenshoot Hasil Run Program Soal3 untuk fitur '*' [soal3](./soal3/soal3.c)**
