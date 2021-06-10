@@ -674,16 +674,21 @@ Pada awalnya dari kelompok kami kesulitan untuk mengatasi perbedaan nama file an
 ![Foto](./img/1.png)
 ---
 
-**Screenshoot Hasil Run Program Soal Nomor 1 untuk menjalankan FUSE layaknya linux pada umumnya**\
-![Foto](./img/cli.png)
----
-
 **Screenshoot Hasil Run Program Soal Nomor 1 untuk implementasi AtoZ direktori**\
 ![Foto](./img/atoz.png)
 ---
 
 **Screenshoot Hasil Run Program Soal Nomor 1 untuk menjalankan FUSE layaknya linux pada umumnya**\
-![Foto](./img/cat cli.png)
+![Foto](./img/cli.png)
+---
+
+**Screenshoot Hasil Run Program Soal Nomor 1 untuk rekursif**\
+![Foto](./img/recursive.png)
+---
+
+
+**Screenshoot Hasil Run Program Soal Nomor 1 untuk menjalankan FUSE layaknya linux pada umumnya**\
+![Foto](./img/cat%20cli.png)
 ---
 
 
