@@ -96,8 +96,6 @@ static const char *dirpath = "/home/lambang/Downloads/fuse";
 ```
 
 
-Selain library diatas, kami juga mendefinisikan dirpath atau direktori yang akan digunakan sebagai mount pada FUSE systemnya.
-
 <br>
 
 ## Soal 1.a.
@@ -672,9 +670,23 @@ Pada awalnya dari kelompok kami kesulitan untuk mengatasi perbedaan nama file an
 <br>
 
 
-**Screenshoot Hasil Run Program Soal Nomor 1 untuk multi connection**\
-![Foto](./img/soal1/multicon.png)
+**Screenshoot Hasil Run Program Soal Nomor 1 untuk mounting FUSE**\
+![Foto](./img/1.png)
 ---
+
+**Screenshoot Hasil Run Program Soal Nomor 1 untuk menjalankan FUSE layaknya linux pada umumnya**\
+![Foto](./img/cli.png)
+---
+
+**Screenshoot Hasil Run Program Soal Nomor 1 untuk implementasi AtoZ direktori**\
+![Foto](./img/atoz.png)
+---
+
+**Screenshoot Hasil Run Program Soal Nomor 1 untuk menjalankan FUSE layaknya linux pada umumnya**\
+![Foto](./img/cat cli.png)
+---
+
+
 
 <br>
 
@@ -694,7 +706,7 @@ Dari kami merasa soal ini lebih utamanya meminta tambahan metode enkripsi agar s
 
 **Cara pengerjaan**
 ---
-
+Pengerjaan akan dijelaskan dalam poin poin berikutnya.
 <br>
 
 ## Soal 2.a.
@@ -1199,9 +1211,14 @@ Tidak bisa mengerjakan
 Tidak ada
 <br>
 
-**Screenshoot Hasil Run Program Soal2 dengan IPC [soal2](./soal2/)**
+**Screenshoot Hasil Run Program untuk direktori RX yang tidak dari move dengan rot13**
 
-![Foto](./img/soal2/nomer2.png)
+![Foto](./img/rxrot.png)
+---
+
+**Screenshoot Hasil Run Program untuk direktori RX yang dari move dengan vigenere cipher**
+
+![Foto](./img/rxvig.png)
 ---
 
 ---
@@ -1549,6 +1566,6 @@ _Pada fungsi diatas kami mendapatkan waktu sekarang dengan deklarasi struct `tim
 Pada awalnya dari kelompok kami kesulitan untuk mengatasi
 <br>
 
-**Screenshoot Hasil Run Program Soal3 untuk fitur '*' [soal3](./soal3/soal3.c)**
-![Foto](./img/soal3/bintang.png)
+**Screenshoot Hasil Run Program untuk penampakan log**
+![Foto](./img/log.png)
 ---
